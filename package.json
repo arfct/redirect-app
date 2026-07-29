@@ -21,10 +21,10 @@
   },
   "homepage": "https://github.com/alcor/redirect-app#readme",
   "dependencies": {
-    "netlify": "^13.1.2",
+    "netlify": "^27.0.1",
     "tweetnacl": "^1.0.3"
   },
   "devDependencies": {
-    "netlify-cli": "^14.3.1"
+    "netlify-cli": "^27.0.1"
   }
 }
