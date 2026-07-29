@@ -11,17 +11,16 @@
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/alcor/redirect-app.git"
+    "url": "git+https://github.com/arfct/redirect-app.git"
   },
   "keywords": [],
   "author": "",
   "license": "ISC",
   "bugs": {
-    "url": "https://github.com/alcor/redirect-app/issues"
+    "url": "https://github.com/arfct/redirect-app/issues"
   },
-  "homepage": "https://github.com/alcor/redirect-app#readme",
+  "homepage": "https://github.com/arfct/redirect-app#readme",
   "dependencies": {
-    "netlify": "^27.0.1",
     "tweetnacl": "^1.0.3"
   },
   "devDependencies": {
