@@ -17,6 +17,21 @@ function decodeURL(s) {
 function atou(b64) { return decodeURIComponent(escape(atob(b64))); }
 function utoa(data) { return btoa(unescape(encodeURIComponent(data))); }
 
+// Shared SVG->PNG renderer: https://github.com/arfct/og-svg
+const RENDER_ORIGIN = "https://og-svg.arfct.workers.dev";
+
+// Builds a render URL from an `svg:` payload.
+//
+// This repo never contained the rasterize function it used to point at, so the
+// svg: image feature has never worked. Nothing depends on a legacy encoding.
+//
+// The payload is passed through byte-for-byte rather than re-encoded, because it
+// may be base64 or percent-encoded SVG depending on who wrote the URL. og-svg
+// tries base64 first and falls back to percent-decoding, so both work.
+function renderUrl(payload) {
+  return `${RENDER_ORIGIN}/png?s=${encodeURIComponent(payload)}`;
+}
+
 let urlValues = ["u","i","v","f"];
 function pathToMetadata(path) {
   let components = path.substring(1).split("/");
@@ -86,7 +101,7 @@ export default async (request, context) => {
         if (info.i) {
           info.i = decodeURL(info.i)
           if (info.i.startsWith("svg:")) {
-            info.i = "/.netlify/functions/rasterize/" + info.i;
+            info.i = renderUrl(info.i.substring(4));
           } else if (info.u && (info.i.startsWith(".") || info.i.startsWith("/"))) {
             info.i = new URL(info.i, info.u).href
           } else {
