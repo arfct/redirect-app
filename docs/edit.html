@@ -446,7 +446,16 @@ function encodeURL(u) {
 function decodeURL(s) {
   s = decodeURIComponent(s)
   if (s.startsWith("http")) s;
-  return atob(s.replace(/=/g,''));
+  return atou(s.replace(/=/g,''));
+}
+
+// UTF-8-safe base64. Plain btoa throws on any character above U+00FF, so a
+// pasted SVG containing an emoji or a checkmark would fail outright, and one
+// containing an accent would silently encode as Latin-1 and render as mojibake.
+function utoa(data) { return btoa(unescape(encodeURIComponent(data))); }
+function atou(b64) {
+  const bytes = atob(b64);
+  try { return decodeURIComponent(escape(bytes)); } catch (e) { return bytes; }
 }
 
 
@@ -455,7 +464,7 @@ function metadataToPath(data) {
   let path = ["/" + encodePrettyComponent(data.title)];
   if (data.description) path.push("d/" + encodePrettyComponent(data.description.substring(0,200).split(". ").shift()));
   if (data.favicon) path.push("f/" + encodeURIComponent(data.favicon));
-  if (data.image) path.push("i/" + encodeURIComponent(btoa(data.image).replace(/=/g, "")));
+  if (data.image) path.push("i/" + encodeURIComponent(utoa(data.image).replace(/=/g, "")));
   return "/m" + path.join('/') + "/";
 }
 
