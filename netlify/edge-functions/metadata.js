@@ -8,7 +8,15 @@ function decodeURL(s) {
   if (s.startsWith(".")) return s;
   if (s.startsWith("/")) return s;
   try {
-    return atob(s.replace(/=/g,''))
+    const bytes = atob(s.replace(/=/g,''))
+    // atob yields Latin-1. Recover UTF-8 so pasted SVG containing accents or
+    // emoji survives; fall back to the raw bytes for genuinely Latin-1 payloads
+    // written by older versions of the editor.
+    try {
+      return decodeURIComponent(escape(bytes))
+    } catch (e) {
+      return bytes
+    }
   } catch (e) {
     return s;
   }
@@ -16,6 +24,52 @@ function decodeURL(s) {
 
 function atou(b64) { return decodeURIComponent(escape(atob(b64))); }
 function utoa(data) { return btoa(unescape(encodeURIComponent(data))); }
+
+// Shared SVG->PNG renderer: https://github.com/arfct/og-svg
+export const RENDER_ORIGIN = "https://og-svg.arfct.workers.dev";
+
+// Builds a render URL from an SVG payload.
+//
+// The payload is passed through byte-for-byte rather than re-encoded, because it
+// may be base64, percent-encoded, or raw markup depending on who wrote the URL.
+// og-svg tries base64 first and falls back to percent-decoding, and wraps a bare
+// fragment in an <svg> root, so all of those work.
+function renderUrl(payload) {
+  return `${RENDER_ORIGIN}/png?s=${encodeURIComponent(payload)}`;
+}
+
+/**
+ * Resolves the `i` field to a final og:image URL.
+ *
+ * The editor base64-encodes whatever is in the image field with no marker
+ * (docs/edit.html), so a user who pastes SVG code — which the prompt invites —
+ * arrives here as raw markup. That used to fall through to the bare-hostname
+ * branch and produce `og:image="https://<svg xmlns=..."`, i.e. no preview at
+ * all. Markup is now detected directly, so both a pasted SVG and an explicit
+ * `svg:` payload reach the renderer.
+ *
+ * @param {string|undefined} raw the `i` value from the path
+ * @param {string|undefined} targetUrl the `u` value, for resolving relatives
+ * @returns {string} the og:image URL, or "" when there is nothing to show
+ */
+export function resolveImageUrl(raw, targetUrl) {
+  if (!raw) return "";
+
+  const value = decodeURL(raw);
+
+  if (value.startsWith("svg:")) return renderUrl(value.substring(4));
+
+  // Raw SVG markup, or a bare fragment og-svg will wrap for us.
+  if (value.trimStart().startsWith("<")) return renderUrl(value);
+
+  if (value.startsWith("http")) return value;
+
+  if (targetUrl && (value.startsWith(".") || value.startsWith("/"))) {
+    return new URL(value, targetUrl).href;
+  }
+
+  return "https://" + value;
+}
 
 let urlValues = ["u","i","v","f"];
 function pathToMetadata(path) {
@@ -88,16 +142,9 @@ export default async (request, context) => {
         }
         
         if (info.i) {
-          info.i = decodeURL(info.i)
-          if (info.i.startsWith("svg:")) {
-            info.i = "/.netlify/functions/rasterize/" + info.i;
-          } else if (info.u && (info.i.startsWith(".") || info.i.startsWith("/"))) {
-            info.i = new URL(info.i, info.u).href
-          } else {
-            info.i = "https://" + info.i;
-          }
+          info.i = resolveImageUrl(info.i, info.u)
 
-          content.push(mProp("og:image", info.i)); 
+          content.push(mProp("og:image", info.i));
           if (info.iw) content.push(mProp("og:image:width", info.iw)); 
           if (info.ih) content.push(mProp("og:image:width", info.ih)); 
           content.push(mName("twitter:card", "summary_large_image"));
