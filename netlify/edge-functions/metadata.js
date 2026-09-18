@@ -49,6 +49,10 @@ export default async (request, context) => {
     let path = url.pathname;
     let geo = context?.geo?.city + ", " + context?.geo?.subdivision?.code + ", " + context?.geo?.country?.code
 
+    // /view/ and /cast/ carry a target URL in the same key/value grammar, but
+    // they are pages in their own right, not link previews. Let them through.
+    if (/^\/(view|cast)(\/|$)/.test(path)) return;
+
     let uaArray = Deno.env.get("UA_ARRAY")?.split(",") || [];
     let uaMatch = uaArray.some(a => ua?.indexOf(a) != -1);
     if (uaMatch) { return new Response('', { status: 401 }); }

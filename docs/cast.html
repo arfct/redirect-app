@@ -1,0 +1,229 @@
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no" />
+<title>Cast a URL — Redirect.app</title>
+<style>
+  :root {
+    --body-color: #E9E9EB;
+    --text-color: #16161d;
+    --card-color: rgba(255,255,255,0.6);
+    --field-color: rgba(255,255,255,0.5);
+    --muted-color: color-mix(in srgb, var(--text-color) 55%, transparent);
+    --faint-color: color-mix(in srgb, var(--text-color) 35%, transparent);
+    --chip-color: color-mix(in srgb, var(--text-color) 8%, transparent);
+    --focus-color: color-mix(in srgb, var(--text-color) 25%, transparent);
+    --warn-color: #b4530a;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --body-color: #16161d;
+      --text-color: #fafafa;
+      --card-color: rgba(255,255,255,0.1);
+      --field-color: rgba(255,255,255,0.07);
+      --warn-color: #f0a868;
+    }
+  }
+  body, input, button {
+    font-family: -apple-system, BlinkMacSystemFont, avenir next, avenir, segoe ui, helvetica neue, helvetica, Cantarell, Ubuntu, roboto, noto, arial, sans-serif;
+  }
+  body {
+    margin: 0;
+    padding: 10vmin 24px;
+    background-color: var(--body-color);
+    color: var(--text-color);
+  }
+  #container { max-width: 420px; margin: auto; }
+  h1 {
+    font-weight: 800;
+    font-size: 28px;
+    letter-spacing: -0.02em;
+    margin: 0 0 20px 4px;
+  }
+  .field {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    background-color: var(--field-color);
+    border-radius: 10px;
+    padding: 10px 12px;
+    transition: box-shadow 0.15s ease;
+  }
+  .field:focus-within { box-shadow: 0 0 0 2px var(--focus-color); }
+  input[type=text] {
+    border: 0;
+    background: transparent;
+    flex: 1 1 auto;
+    font-size: 16px;
+    color: var(--text-color);
+    min-width: 0;
+  }
+  input[type=text]:focus { outline: none; }
+  ::placeholder { color: var(--faint-color); opacity: 1; }
+
+  .row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-top: 18px;
+    font-size: 13px;
+    color: var(--muted-color);
+  }
+  label { cursor: pointer; }
+
+  #actions {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    margin-top: 24px;
+  }
+  button#send {
+    border: 0;
+    border-radius: 999px;
+    padding: 10px 20px;
+    font-size: 14px;
+    font-weight: 600;
+    background: var(--chip-color);
+    color: var(--text-color);
+    cursor: pointer;
+  }
+  button#send:disabled { opacity: 0.4; cursor: default; }
+  google-cast-launcher { width: 32px; height: 32px; --connected-color: var(--text-color); --disconnected-color: var(--muted-color); }
+
+  #status {
+    margin-top: 20px;
+    font-size: 13px;
+    line-height: 1.5;
+    color: var(--muted-color);
+    min-height: 3em;
+  }
+  #status.warn { color: var(--warn-color); }
+  code {
+    font-size: 12px;
+    background: var(--chip-color);
+    padding: 1px 5px;
+    border-radius: 4px;
+  }
+  .note { margin-top: 28px; font-size: 12px; line-height: 1.6; color: var(--faint-color); }
+</style>
+<body>
+<div id="container">
+  <h1>cast a url ↗</h1>
+
+  <div class="field">
+    <input type="text" id="url" placeholder="paste a url..." autocomplete="off" autocapitalize="off" spellcheck="false">
+  </div>
+
+  <div class="row">
+    <input type="checkbox" id="wrap">
+    <label for="wrap">wrap in a frame instead of forwarding</label>
+  </div>
+
+  <div id="actions">
+    <button id="send" disabled>send</button>
+    <google-cast-launcher></google-cast-launcher>
+  </div>
+
+  <div id="status">Loading the Cast sender…</div>
+
+  <div class="note">
+    Forwarding hands the whole screen to the target, so it works on sites that
+    refuse framing and on plain-http dashboards. It also ends the Cast session —
+    to change what is on screen, cast again.
+  </div>
+</div>
+
+<script src="/forward.js"></script>
+<script>
+(function () {
+  // Set once the receiver is registered in the Google Cast SDK Developer Console.
+  // Override for testing with ?app=XXXXXXXX
+  var APP_ID = "";
+  var NS_APP = "urn:x-cast:app.redirect";
+
+  var params = new URLSearchParams(location.search);
+  if (params.get("app")) APP_ID = params.get("app");
+
+  var urlField = document.getElementById("url");
+  var wrapField = document.getElementById("wrap");
+  var sendButton = document.getElementById("send");
+  var statusBox = document.getElementById("status");
+
+  function status(text, warn) {
+    statusBox.textContent = text;
+    statusBox.className = warn ? "warn" : "";
+  }
+
+  // Prefill from /cast#<url>, ?u=<url> or /cast/u/<url>/
+  var prefill = parseForwardPath(location.pathname, location.search, location.hash);
+  if (prefill.u) urlField.value = prefill.u;
+  if (prefill.m === "f") wrapField.checked = true;
+
+  function target() {
+    var value = urlField.value.trim();
+    return value ? normalizeTarget(value) : "";
+  }
+
+  function send() {
+    var url = target();
+    if (!url) return status("Enter a URL first.", true);
+    if (!isSafeTarget(url)) return status("That scheme is not allowed.", true);
+
+    var context = cast.framework.CastContext.getInstance();
+    var session = context.getCurrentSession();
+
+    if (!session) {
+      status("Pick a device…");
+      context.requestSession().then(function () {
+        send();
+      }, function (error) {
+        if (error !== "cancel") status("Could not start a Cast session: " + error, true);
+        else status("Cancelled.");
+      });
+      return;
+    }
+
+    session.sendMessage(NS_APP, { url: url, mode: wrapField.checked ? "f" : "t" }).then(function () {
+      status(wrapField.checked ? "Sent. Wrapping " + url : "Sent. Forwarding to " + url +
+        " — the Cast session ends now, which is expected.");
+    }, function (error) {
+      status("Send failed: " + error, true);
+    });
+  }
+
+  sendButton.addEventListener("click", send);
+  urlField.addEventListener("keydown", function (e) { if (e.key === "Enter") send(); });
+
+  var sdkAnswered = false;
+
+  // The sender SDK only exists in Chromium browsers, and even there the
+  // callback may never fire if the script is blocked. Don't sit on "Loading".
+  setTimeout(function () {
+    if (!sdkAnswered) {
+      status("Cast is not available here. The sender SDK needs Chrome or another Chromium browser, with the script at gstatic.com reachable.", true);
+    }
+  }, 6000);
+
+  window.__senderSdkFailed = function () {
+    sdkAnswered = true;
+    status("Could not load the Cast sender SDK from gstatic.com.", true);
+  };
+
+  window.__onGCastApiAvailable = function (isAvailable) {
+    sdkAnswered = true;
+    if (!isAvailable) {
+      return status("Cast is not available in this browser. The sender SDK needs Chrome or another Chromium browser.", true);
+    }
+    if (!APP_ID) {
+      return status("No receiver app id set yet. Register https://redirect.app/cast/receiver/ in the Google Cast SDK Developer Console, then set APP_ID in cast.html, or pass ?app=XXXXXXXX to test.", true);
+    }
+    cast.framework.CastContext.getInstance().setOptions({
+      receiverApplicationId: APP_ID,
+      autoJoinPolicy: chrome.cast.AutoJoinPolicy.ORIGIN_SCOPED
+    });
+    sendButton.disabled = false;
+    status("Ready. Pick a device with the Cast button.");
+  };
+})();
+</script>
+<script src="https://www.gstatic.com/cv/js/sender/v1/cast_sender.js?loadCastFramework=1"
+        onerror="window.__senderSdkFailed && window.__senderSdkFailed()"></script>
+</body>
