@@ -213,7 +213,7 @@
       return status("Cast is not available in this browser. The sender SDK needs Chrome or another Chromium browser.", true);
     }
     if (!APP_ID) {
-      return status("No receiver app id set yet. Register https://redirect.app/cast/receiver/ in the Google Cast SDK Developer Console, then set APP_ID in cast.html, or pass ?app=XXXXXXXX to test.", true);
+      return status("No receiver app id set yet. Register https://www.redirect.app/cast/receiver/ in the Google Cast SDK Developer Console, then set APP_ID in cast.html, or pass ?app=XXXXXXXX to test.", true);
     }
     cast.framework.CastContext.getInstance().setOptions({
       receiverApplicationId: APP_ID,
