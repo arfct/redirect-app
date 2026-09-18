@@ -5,3 +5,5 @@
 .netlify
 node_modules
 package-lock.json
+# Netlify dev / Deno artifact
+deno.lock

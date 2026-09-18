@@ -1,0 +1,141 @@
+<meta charset="UTF-8">
+<title>Redirect.app</title>
+<!--
+  Registered Cast receiver for redirect.app.
+  Register this exact URL in the Google Cast SDK Developer Console:
+    https://redirect.app/cast/receiver/
+
+  It holds no session state. A sender pushes one URL, the receiver forwards to
+  it, and the Cast session ends with the page. That is the intended behaviour,
+  not a limitation: it is the only mode that works for sites which refuse
+  framing and for plain-http dashboards on a LAN.
+
+  Namespaces:
+    urn:x-cast:app.redirect        {"url": "...", "mode": "t" | "f"}
+    urn:x-cast:es.offd.dashcast    {"url": "...", "force": true | false}
+
+  The second is DashCast's own namespace and message shape, so existing tools
+  (catt, the Home Assistant DashCast component) work against this app id
+  unchanged. DashCast's default is to frame; ours is to forward.
+-->
+<style>
+  html, body {
+    height: 100%;
+    margin: 0;
+    padding: 0;
+    background: #000;
+    color: #fff;
+    overflow: hidden;
+    font-family: -apple-system, BlinkMacSystemFont, segoe ui, roboto, helvetica, arial, sans-serif;
+  }
+  #chrome {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 14px;
+    text-align: center;
+    padding: 5vmin;
+    transition: opacity 0.6s ease;
+  }
+  #chrome.done { opacity: 0; }
+  #title { font-size: 3.2vmin; font-weight: 600; }
+  #status { font-size: 2vmin; color: rgba(255,255,255,0.45); word-break: break-all; }
+  iframe {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    border: 0;
+    background: #000;
+    opacity: 0;
+    transition: opacity 0.6s ease;
+  }
+  iframe.show { opacity: 1; }
+</style>
+<body>
+  <iframe id="frame" hidden></iframe>
+  <div id="chrome">
+    <div id="title">redirect.app</div>
+    <div id="status">Waiting for a URL</div>
+  </div>
+
+  <script src="//www.gstatic.com/cast/sdk/libs/caf_receiver/v3/cast_receiver_framework.js"></script>
+  <script src="/forward.js"></script>
+  <script>
+  (function () {
+    var NS_APP = "urn:x-cast:app.redirect";
+    var NS_DASHCAST = "urn:x-cast:es.offd.dashcast";
+
+    var chrome = document.getElementById("chrome");
+    var frame = document.getElementById("frame");
+    var handled = false;
+
+    function status(text) {
+      document.getElementById("status").textContent = text;
+    }
+
+    function show(url) {
+      frame.hidden = false;
+      frame.onload = function () {
+        frame.classList.add("show");
+        chrome.classList.add("done");
+      };
+      frame.src = url;
+    }
+
+    function open(url, frameIt) {
+      if (!isSafeTarget(url)) return status("Blocked: " + url);
+      if (handled) return;
+      handled = true;
+      if (frameIt && isFramable(url)) {
+        status("Wrapping " + url);
+        show(url);
+      } else {
+        status("Opening " + url);
+        // Leaving this page ends the Cast session. Nothing to clean up.
+        setTimeout(function () { location.replace(url); }, 400);
+      }
+    }
+
+    function receive(data, dashcast) {
+      var msg;
+      try {
+        msg = (typeof data === "string") ? JSON.parse(data) : data;
+      } catch (e) {
+        return status("Bad message");
+      }
+      if (!msg || !msg.url) return status("No url in message");
+
+      // DashCast frames unless told to force; we forward unless told to wrap.
+      var frameIt = dashcast ? !msg.force : (msg.mode === "f" || msg.force === false);
+      open(normalizeTarget(msg.url), frameIt);
+    }
+
+    var context = cast.framework.CastReceiverContext.getInstance();
+    context.addCustomMessageListener(NS_APP, function (e) { receive(e.data, false); });
+    context.addCustomMessageListener(NS_DASHCAST, function (e) { receive(e.data, true); });
+
+    var options = new cast.framework.CastReceiverOptions();
+    // No media ever plays here, so the default idle shutdown would close the
+    // receiver before a sender gets a URL to it.
+    options.disableIdleTimeout = true;
+    options.maxInactivity = 3600;
+
+    // Opened anywhere other than a Cast device, start() rejects. Say something
+    // useful instead of leaving an unhandled rejection and a blank screen.
+    function offDevice() {
+      document.getElementById("title").textContent = "redirect.app receiver";
+      status("This page is a Chromecast receiver. Cast to it from redirect.app/cast");
+    }
+    try {
+      var starting = context.start(options);
+      if (starting && typeof starting.catch === "function") starting.catch(offDevice);
+    } catch (e) {
+      offDevice();
+    }
+  })();
+  </script>
+</body>

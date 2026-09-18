@@ -13,6 +13,36 @@
   status = 200
 
 [[redirects]]
+  from = "/view"
+  to = "/view.html"
+  status = 200
+
+[[redirects]]
+  from = "/view/*"
+  to = "/view.html"
+  status = 200
+
+[[redirects]]
+  from = "/cast/receiver"
+  to = "/cast-receiver.html"
+  status = 200
+
+[[redirects]]
+  from = "/cast/receiver/*"
+  to = "/cast-receiver.html"
+  status = 200
+
+[[redirects]]
+  from = "/cast"
+  to = "/cast.html"
+  status = 200
+
+[[redirects]]
+  from = "/cast/*"
+  to = "/cast.html"
+  status = 200
+
+[[redirects]]
   from = "/*"
   to = "/index.html"
   status = 200
