@@ -61,10 +61,17 @@ A target with no scheme gets one, chosen by what the host looks like:
 | `example.com` | `https://example.com` |
 | `example.com:8080` | `https://example.com:8080` |
 | `192.168.1.50:8123` | `http://192.168.1.50:8123` |
+| `localhost:3000` | `http://localhost:3000` |
+| `nas1.local` | `http://nas1.local` |
 
-Numeric hosts are devices on the local network, which rarely have
-certificates; named hosts should be https. A host and port is not mistaken for
-a scheme, and `tel:5551234` still is one.
+Numeric hosts, `localhost` and `.local` names are this machine or a device on
+the local network, which rarely have certificates. Everything else gets https.
+
+Telling a host and port from a scheme takes some care, since `example.com` is
+made of characters that are legal in a scheme. It reads as a host and port only
+when the name is dotted or is `localhost` *and* what follows the colon is
+purely a number — so `localhost:3000` is a host, and `tel:5551234` is still a
+scheme.
 
 ## Fallbacks
 

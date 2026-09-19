@@ -26,22 +26,31 @@ function decodeURL(s) {
   if (s.charAt(0) === "." || s.charAt(0) === "/") return s;
   // A hostname or path is never base64, so only try atob on a bare token.
   if (s.indexOf(".") >= 0 || s.indexOf("/") >= 0) return s;
-  try { return atob(s.replace(/=/g, "")); } catch (e) { return s; }
+  try {
+    var decoded = atob(s.replace(/=/g, ""));
+    // "intranet" is valid base64 by accident and decodes to bytes, so only
+    // accept a decode that came out as text and looks like a URL.
+    return (/^[\x20-\x7e]+$/.test(decoded) && /[.:]/.test(decoded)) ? decoded : s;
+  } catch (e) { return s; }
 }
 
 function hasScheme(u) {
   var m = /^([a-z][a-z0-9+.-]*):(.*)$/i.exec(u);
   if (!m) return false;
-  // "example.com:8080" is a host and port, not a scheme. "tel:5551234" is a
-  // scheme, so only treat it as a port when the part before the colon is dotted.
-  if (m[1].indexOf(".") >= 0 && /^\d+([/?#]|$)/.test(m[2])) return false;
+  // "example.com:8080" and "localhost:3000" are a host and port, not a scheme.
+  // "tel:5551234" is a scheme, so only treat it as a port when the part before
+  // the colon is a dotted name or localhost.
+  var name = m[1].toLowerCase();
+  if ((name.indexOf(".") >= 0 || name === "localhost") && /^\d+([/?#]|$)/.test(m[2])) return false;
   return true;
 }
 
 function defaultScheme(u) {
-  var host = u.split("/")[0].split("?")[0].split("#")[0].split(":")[0];
-  // A numeric host is a device on the network, which rarely has a certificate.
-  return (/^[0-9.]+$/.test(host) ? "http://" : "https://") + u;
+  var host = u.split("/")[0].split("?")[0].split("#")[0].split(":")[0].toLowerCase();
+  // Numeric hosts, localhost and .local names are this machine or a device on
+  // the local network, which rarely have certificates.
+  var local = /^[0-9.]+$/.test(host) || host === "localhost" || /\.(local|localhost)$/.test(host);
+  return (local ? "http://" : "https://") + u;
 }
 
 function normalizeTarget(v) {
