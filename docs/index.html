@@ -7,6 +7,21 @@ window.onerror = function(error) {alert(error)};
 var REDIRECT_URL = 'REDIRECT_URL'
 var storedValue = (document.cookie.split(REDIRECT_URL + '=')[1]||'').split(';').shift();
 
+function hasScheme(u) {
+  var m = /^([a-z][a-z0-9+.-]*):(.*)$/i.exec(u);
+  if (!m) return false;
+  // "example.com:8080" is a host and port, not a scheme. "tel:5551234" is a
+  // scheme, so only treat it as a port when the part before the colon is dotted.
+  if (m[1].indexOf(".") >= 0 && /^\d+([/?#]|$)/.test(m[2])) return false;
+  return true;
+}
+
+function defaultScheme(u) {
+  var host = u.split("/")[0].split("?")[0].split("#")[0].split(":")[0];
+  // A numeric host is a device on the network, which rarely has a certificate.
+  return (/^[0-9.]+$/.test(host) ? "http://" : "https://") + u;
+}
+
 function askForDestination(url) {
   url = prompt([
     "This app opens other sites and URLs", 
@@ -15,7 +30,7 @@ function askForDestination(url) {
     url || "https://");
 
   if (url != null) {
-    if (url.indexOf(":") < 0) url = "http://" + url;
+    if (!hasScheme(url)) url = defaultScheme(url);
     var cookie = (REDIRECT_URL + '=' + url + '; expires=Fri, 31 Dec 9999 23:59:59 GMT; path=/')
     document.cookie = cookie;
     navigateTo(url, 3000, true);

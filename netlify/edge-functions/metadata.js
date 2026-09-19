@@ -14,6 +14,21 @@ function decodeURL(s) {
   }
 }
 
+function hasScheme(u) {
+  let m = /^([a-z][a-z0-9+.-]*):(.*)$/i.exec(u);
+  if (!m) return false;
+  // "example.com:8080" is a host and port, not a scheme. "tel:5551234" is a
+  // scheme, so only treat it as a port when the part before the colon is dotted.
+  if (m[1].indexOf(".") >= 0 && /^\d+([/?#]|$)/.test(m[2])) return false;
+  return true;
+}
+
+function defaultScheme(u) {
+  let host = u.split("/")[0].split("?")[0].split("#")[0].split(":")[0];
+  // A numeric host is a device on the network, which rarely has a certificate.
+  return (/^[0-9.]+$/.test(host) ? "http://" : "https://") + u;
+}
+
 function atou(b64) { return decodeURIComponent(escape(atob(b64))); }
 function utoa(data) { return btoa(unescape(encodeURIComponent(data))); }
 
@@ -80,7 +95,7 @@ export default async (request, context) => {
 
         if (info.u) {
           info.u = decodeURL(info.u)
-          if (!info.u.startsWith("http")) info.u = "https://" + info.u;
+          if (!hasScheme(info.u)) info.u = defaultScheme(info.u);
           content.push(mProp("og:url", info.u));
           content.push(`<script>location.href="${info.u}"</script>`);
         } else {

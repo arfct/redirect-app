@@ -29,12 +29,27 @@ function decodeURL(s) {
   try { return atob(s.replace(/=/g, "")); } catch (e) { return s; }
 }
 
+function hasScheme(u) {
+  var m = /^([a-z][a-z0-9+.-]*):(.*)$/i.exec(u);
+  if (!m) return false;
+  // "example.com:8080" is a host and port, not a scheme. "tel:5551234" is a
+  // scheme, so only treat it as a port when the part before the colon is dotted.
+  if (m[1].indexOf(".") >= 0 && /^\d+([/?#]|$)/.test(m[2])) return false;
+  return true;
+}
+
+function defaultScheme(u) {
+  var host = u.split("/")[0].split("?")[0].split("#")[0].split(":")[0];
+  // A numeric host is a device on the network, which rarely has a certificate.
+  return (/^[0-9.]+$/.test(host) ? "http://" : "https://") + u;
+}
+
 function normalizeTarget(v) {
   if (!v) return "";
   v = String(v).trim();
   if (v.charAt(0) === ":") return "https://" + v.substring(1);
   v = decodeURL(v);
-  if (!/^[a-z][a-z0-9+.-]*:/i.test(v)) v = "https://" + v;
+  if (!hasScheme(v)) v = defaultScheme(v);
   return v;
 }
 
