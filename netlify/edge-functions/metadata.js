@@ -145,6 +145,14 @@ export function isMetadataBot(ua) {
   return METADATA_BOTS.some(bot => lower.includes(bot));
 }
 
+// Apple's link-preview fetcher claims to be Safari, Facebook, and Twitter at
+// once. No real Facebook or Twitter crawler claims Safari, so all four together
+// identify it.
+export function isIMessage(ua) {
+  const lower = (ua || "").toLowerCase();
+  return ["safari", "applewebkit", "facebookexternalhit", "twitterbot"].every(s => lower.includes(s));
+}
+
 function faviconUrl(value, targetUrl) {
   if (value.length > 9) {
     return decodeURL(targetUrl ? new URL(value, targetUrl).href : value);
@@ -157,22 +165,28 @@ function faviconUrl(value, targetUrl) {
 /**
  * Builds the <head> tags for a decoded path.
  *
- * `p` (post) opts into iMessage's social-post layout. By default iMessage shows
- * only title and image; a page that looks like a Fediverse post (og:type
- * article plus an ActivityPub alternate link) gets the description as body
- * text and the favicon as the avatar beside the image. Other platforms ignore
- * the alternate link. This rides on an undocumented heuristic, so the default
- * tags stay correct and the card degrades to title and image if Apple changes it.
+ * Post style puts iMessage in its social-post layout. By default iMessage shows
+ * only title and image, and drops the icon when there is an image. A page that
+ * looks like a Fediverse post (og:type article plus an ActivityPub alternate
+ * link) gets the description as body text and the icon beside the title.
+ * iMessage falls back to the default layout when there is no description.
+ *
+ * Post style is on for iMessage unless the path has `p/0`; `p/1` turns it on
+ * for every crawler. Other platforms ignore the alternate link. This rides on
+ * an undocumented heuristic, so the default tags stay correct and the card
+ * degrades to title and image if Apple changes it.
  *
  * @param {object} info the output of pathToMetadata
+ * @param {{imessage?: boolean}} options imessage: the request is Apple's fetcher
  * @returns {string[]} the tags, one per entry
  */
-export function buildTags(info) {
+export function buildTags(info, { imessage = false } = {}) {
   info = { ...info };
   let content = ['<meta charset="UTF-8">'];
   if (info.t) { content.push(`<title>${escapeHtml(info.t)}</title>`, mProp("og:title", info.t)) }
   if (info.s) { content.push(mProp("og:site_name", info.s)) }
-  if (info.p) {
+  const post = info.p ? info.p !== "0" : imessage;
+  if (post) {
     content.push(mProp("og:type", "article"));
     content.push(mLink("alternate", "", "application/activity+json"));
   } else if (info.y) {
@@ -239,7 +253,7 @@ export default async (request, context) => {
       if (isBot && path.endsWith("/")) {
         console.log("parsing", path)
         let info = pathToMetadata(path)
-        let content = buildTags(info);
+        let content = buildTags(info, { imessage: isIMessage(ua) });
 
         console.log(["Metadata Request", JSON.stringify(info), geo, ua].join('\t'));
         return new Response(content.join("\n"), {

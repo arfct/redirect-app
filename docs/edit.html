@@ -385,6 +385,51 @@
     display: none;
   }
 
+  /* iMessage drops the icon beside a large image, unless the link is post
+     style and has a description */
+  body.imessage:not(:has(#p:checked)) .card.has-image #f_preview,
+  body.imessage .card.has-image:has(#d:placeholder-shown) #f_preview {
+    opacity: 0.25;
+  }
+
+  /* An empty description collapses, as in iMessage, until you reach for it */
+  body.imessage .card:not(:hover):not(:focus-within) textarea[name="d"]:placeholder-shown {
+    display: none;
+  }
+
+  /* iMessage post style: description, then icon beside title and domain.
+     Without a description iMessage uses its plain layout, so this needs one. */
+  body.imessage:has(#p:checked):has(#d:not(:placeholder-shown)) .card .column {
+    display: grid;
+    grid-template-columns: auto 1fr;
+    grid-template-areas:
+      "d d"
+      "f t"
+      "f domain";
+    align-items: center;
+  }
+  body.imessage:has(#p:checked):has(#d:not(:placeholder-shown)) #siterow {
+    display: contents;
+  }
+  body.imessage:has(#p:checked):has(#d:not(:placeholder-shown)) textarea[name="d"] {
+    grid-area: d;
+    margin-bottom: 10px;
+  }
+  body.imessage:has(#p:checked):has(#d:not(:placeholder-shown)) textarea[name="t"] {
+    grid-area: t;
+  }
+  body.imessage:has(#p:checked):has(#d:not(:placeholder-shown)) #domain {
+    grid-area: domain;
+    margin-top: 0;
+  }
+  body.imessage:has(#p:checked):has(#d:not(:placeholder-shown)) #f_preview {
+    grid-area: f;
+    width: 28px;
+    height: 28px;
+    margin: 0 0 0 16px;
+    border-radius: 6px;
+  }
+
   body.discord textarea[name="t"] {
     color: #00a8fc;
     font-weight: normal;
@@ -577,7 +622,7 @@ function load() {
     for (let key in data) {
       // Paths can carry keys the editor has no field for (y, c, iw…)
       if (!form[key]) continue;
-      if (form[key].type == "checkbox") { form[key].checked = !!data[key]; continue; }
+      if (form[key].type == "checkbox") { form[key].checked = data[key] !== "0"; continue; }
       form[key].value = data[key];
       if (!data[key].length) continue;
       if (key == "i") document.getElementById("i_preview").src = imageToURL(data[key]);
@@ -589,6 +634,8 @@ function load() {
 }
 
 function adjustHeight(el) {  /* javascript */
+  // A hidden field measures 0px tall; leave it at its rows height for when it shows
+  if (!el.offsetParent) { el.style.height = ""; return; }
   el.style.height = "1px";
   el.style.height = (el.scrollHeight)+"px";
 }
@@ -602,7 +649,11 @@ function parse() {
 
   let formObj = Object.fromEntries(formData);
 
+  // Post style is on by default for iMessage, so only opting out is written
+  let post = document.getElementById("p").checked;
+  formObj.p = post ? "" : "0";
   localStorage.setItem("data", JSON.stringify(formObj));
+  document.querySelector(".card").classList.toggle("has-image", !!formObj.i);
 
   let url = formData.get("u");
   formData.delete("u")
@@ -612,7 +663,7 @@ function parse() {
 
   if (mode == "imessage") {
     // Post style makes iMessage show the description, so keep it
-    if (!formData.get("p")) formData.delete("d");
+    if (!post) formData.delete("d");
     formData.delete("s");
   }
   if (title) {
@@ -628,7 +679,7 @@ function parse() {
       path += `/${key}/${value}`
     });
 
-    // formData.forEach((value, key) => {if (value.length) object[key] = value});
+    if (!post) path += "/p/0";
 
     let hash = false;
     if (hash) {
@@ -676,6 +727,7 @@ function clearForm() {
   let form = document.forms[0];
   form.reset();
   for (let el of form.querySelectorAll("input[type=image]")) el.src = el.dataset.blank;
+  document.querySelector(".card").classList.remove("has-image");
   document.getElementById("domain").textContent = "example.com";
   document.getElementById("s").placeholder = "site name";
   localStorage.removeItem("data");
@@ -741,8 +793,8 @@ window.addEventListener("resize", () => {
             <button type="button" id="copy" onclick="copyResult(this)" title="Copy to clipboard">copy</button>
           </div>
         </div>
-        <label class="option" title="Adds /p/1/ so the link looks like a social post to iMessage">
-          <input type="checkbox" id="p" name="p" value="1" onchange="parse()">
+        <label class="option" title="On by default. Turning it off adds /p/0/, so iMessage shows its plain layout">
+          <input type="checkbox" id="p" checked onchange="parse()">
           <span>Show the description in iMessage, styled as a post</span>
         </label>
         <textarea id="linkbot" onclick="selectElement(this)"></textarea>
@@ -766,7 +818,7 @@ window.addEventListener("resize", () => {
               <input type="image" src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='1200' height='600' viewBox='0 0 1200 600'%3E%%3C/svg%3E%0A" id="f_preview" target="f" onclick="getURL(this)" title="Click to set an icon or emoji" placeholder="icon">
               </div>
               <textarea id="t" name="t" oninput="parse()" placeholder="title"></textarea>
-              <textarea id="d" name="d" oninput="parse()" placeholder="description"></textarea>
+              <textarea id="d" name="d" rows="1" oninput="parse()" placeholder="description"></textarea>
               <input id="i" name="i" type="hidden" oninput="parse()">
               <input id="f" name="f" type="hidden" oninput="parse()">
 
