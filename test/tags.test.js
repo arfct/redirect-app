@@ -1,10 +1,10 @@
 import { describe, it, expect } from "vitest";
-import { buildTags, pathToMetadata, isMetadataBot } from "../netlify/edge-functions/metadata.js";
+import { buildTags, pathToMetadata, isMetadataBot, isIMessage } from "../netlify/edge-functions/metadata.js";
 
 const IMESSAGE_UA =
   "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_11_1) AppleWebKit/601.2.4 (KHTML, like Gecko) Version/9.0.1 Safari/601.2.4 facebookexternalhit/1.1 Facebot Twitterbot/1.0";
 
-const tagsFor = (path) => buildTags(pathToMetadata(path)).join("\n");
+const tagsFor = (path, options) => buildTags(pathToMetadata(path), options).join("\n");
 
 describe("post mode (p)", () => {
   it("emits the Fediverse-post signals iMessage looks for", () => {
@@ -20,7 +20,18 @@ describe("post mode (p)", () => {
     expect(html).not.toContain('content="website"');
   });
 
-  it("is absent by default", () => {
+  it("is on for iMessage without a p key", () => {
+    const html = tagsFor("/Hi/d/There/", { imessage: true });
+    expect(html).toContain("activity+json");
+    expect(html).toContain('content="article"');
+  });
+
+  it("is off for iMessage with p/0", () => {
+    const html = tagsFor("/Hi/d/There/p/0/", { imessage: true });
+    expect(html).not.toContain("activity+json");
+  });
+
+  it("is off for other crawlers without a p key", () => {
     const html = tagsFor("/Hi/d/There/");
     expect(html).not.toContain("activity+json");
     expect(html).not.toContain("og:type");
@@ -56,6 +67,15 @@ describe("buildTags", () => {
   it("accepts an absolute favicon URL without a forwarding URL", () => {
     expect(() => tagsFor(`/Hi/f/${encodeURIComponent("https://e.com/icon.png")}/`)).not.toThrow();
   });
+});
+
+describe("isIMessage", () => {
+  it("matches Apple's fetcher", () => expect(isIMessage(IMESSAGE_UA)).toBe(true));
+
+  it.each(["facebookexternalhit/1.1", "Twitterbot/1.0", "Mozilla/5.0 AppleWebKit Safari"])(
+    "ignores %s",
+    (ua) => expect(isIMessage(ua)).toBe(false),
+  );
 });
 
 describe("isMetadataBot", () => {

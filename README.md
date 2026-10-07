@@ -39,7 +39,7 @@ Paths are `/key/value/` pairs. The first segment is the title, so
 | `f` | Favicon: a URL, or a single emoji |
 | `c` | Theme colour, hex without the `#` |
 | `y` | `og:type` |
-| `p` | Post style: any value makes iMessage show the description, by marking the page as a Fediverse post (`og:type` `article` plus an ActivityPub alternate link). Overrides `y`. |
+| `p` | Post style. On by default for iMessage, which then shows the description above the title and the favicon beside it. `0` turns it off; `1` turns it on for every crawler. Overrides `y`. iMessage ignores it when there's no description. |
 | `m` | `/view/` only — `t` forwards (default), `f` wraps in a frame |
 
 Three encodings keep these readable:
