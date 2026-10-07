@@ -12,14 +12,39 @@ function decodeURL(s) {
     // atob yields Latin-1. Recover UTF-8 so pasted SVG containing accents or
     // emoji survives; fall back to the raw bytes for genuinely Latin-1 payloads
     // written by older versions of the editor.
+    let decoded;
     try {
-      return decodeURIComponent(escape(bytes))
+      decoded = decodeURIComponent(escape(bytes))
     } catch (e) {
-      return bytes
+      decoded = bytes
     }
+    // SVG markup goes to the renderer, so it may hold newlines and non-ASCII
+    if (/^\s*</.test(decoded) || decoded.startsWith("svg:")) return decoded;
+    // "intranet" is valid base64 by accident and decodes to bytes, so only
+    // accept a decode that came out as text and looks like a URL.
+    return (/^[\x20-\x7e]+$/.test(decoded) && /[.:]/.test(decoded)) ? decoded : s;
   } catch (e) {
     return s;
   }
+}
+
+function hasScheme(u) {
+  let m = /^([a-z][a-z0-9+.-]*):(.*)$/i.exec(u);
+  if (!m) return false;
+  // "example.com:8080" and "localhost:3000" are a host and port, not a scheme.
+  // "tel:5551234" is a scheme, so only treat it as a port when the part before
+  // the colon is a dotted name or localhost.
+  let name = m[1].toLowerCase();
+  if ((name.indexOf(".") >= 0 || name === "localhost") && /^\d+([/?#]|$)/.test(m[2])) return false;
+  return true;
+}
+
+function defaultScheme(u) {
+  let host = u.split("/")[0].split("?")[0].split("#")[0].split(":")[0].toLowerCase();
+  // Numeric hosts, localhost and .local names are this machine or a device on
+  // the local network, which rarely have certificates.
+  let local = /^[0-9.]+$/.test(host) || host === "localhost" || /\.(local|localhost)$/.test(host);
+  return (local ? "http://" : "https://") + u;
 }
 
 function atou(b64) { return decodeURIComponent(escape(atob(b64))); }
@@ -158,7 +183,7 @@ export function buildTags(info) {
 
   if (info.u) {
     info.u = decodeURL(info.u)
-    if (!info.u.startsWith("http")) info.u = "https://" + info.u;
+    if (!hasScheme(info.u)) info.u = defaultScheme(info.u);
     content.push(mProp("og:url", info.u));
     // JSON.stringify quotes the string; escaping < keeps </script> from closing the tag
     content.push(`<script>location.href=${JSON.stringify(info.u).replace(/</g, "\\u003c")}</script>`);
@@ -191,6 +216,10 @@ export default async (request, context) => {
     let url = new URL(request.url);
     let path = url.pathname;
     let geo = context?.geo?.city + ", " + context?.geo?.subdivision?.code + ", " + context?.geo?.country?.code
+
+    // /view/ and /cast/ carry a target URL in the same key/value grammar, but
+    // they are pages in their own right, not link previews. Let them through.
+    if (/^\/(view|cast)(\/|$)/.test(path)) return;
 
     let uaArray = Deno.env.get("UA_ARRAY")?.split(",") || [];
     let uaMatch = uaArray.some(a => ua?.indexOf(a) != -1);
