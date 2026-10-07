@@ -72,7 +72,7 @@ export function resolveImageUrl(raw, targetUrl) {
 }
 
 let urlValues = ["u","i","v","f"];
-function pathToMetadata(path) {
+export function pathToMetadata(path) {
   let components = path.substring(1).split("/");
   components.unshift("t"); // Title designation for the first element
   let info = {}
@@ -91,8 +91,97 @@ function pathToMetadata(path) {
   return info;
 }
 
-function mProp(prop, content) { return `<meta property="${prop}" content="${content}"/>` }
-function mName(name, content) { return `<meta name="${name}" content="${content}"/>` }
+// Metadata is user content headed for an HTML attribute sink, so every
+// interpolated value is escaped.
+export function escapeHtml(text) {
+  return String(text)
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+}
+
+function mProp(prop, content) { return `<meta property="${prop}" content="${escapeHtml(content)}"/>` }
+function mName(name, content) { return `<meta name="${name}" content="${escapeHtml(content)}"/>` }
+function mLink(rel, href, type) {
+  return `<link rel="${rel}"${type ? ` type="${type}"` : ""} href="${escapeHtml(href)}">`
+}
+
+// Case-insensitive substrings. iMessage's fetcher claims facebookexternalhit
+// and Twitterbot at once, so it matches here too.
+const METADATA_BOTS = [
+  "twitterbot", "facebookexternalhit", "slackbot-linkexpanding", "discordbot",
+  "whatsapp", "telegrambot", "linkedinbot", "snapchat", "googlebot", "curl",
+];
+
+export function isMetadataBot(ua) {
+  const lower = (ua || "").toLowerCase();
+  return METADATA_BOTS.some(bot => lower.includes(bot));
+}
+
+function faviconUrl(value, targetUrl) {
+  if (value.length > 9) {
+    return decodeURL(targetUrl ? new URL(value, targetUrl).href : value);
+  }
+  // A short value is an emoji, served from Google's Noto PNG CDN
+  let codepoints = Array.from(value).map(c => c.codePointAt(0).toString(16));
+  return `https://fonts.gstatic.com/s/e/notoemoji/14.0/${codepoints.join("_")}/128.png`;
+}
+
+/**
+ * Builds the <head> tags for a decoded path.
+ *
+ * `p` (post) opts into iMessage's social-post layout. By default iMessage shows
+ * only title and image; a page that looks like a Fediverse post (og:type
+ * article plus an ActivityPub alternate link) gets the description as body
+ * text and the favicon as the avatar beside the image. Other platforms ignore
+ * the alternate link. This rides on an undocumented heuristic, so the default
+ * tags stay correct and the card degrades to title and image if Apple changes it.
+ *
+ * @param {object} info the output of pathToMetadata
+ * @returns {string[]} the tags, one per entry
+ */
+export function buildTags(info) {
+  info = { ...info };
+  let content = ['<meta charset="UTF-8">'];
+  if (info.t) { content.push(`<title>${escapeHtml(info.t)}</title>`, mProp("og:title", info.t)) }
+  if (info.s) { content.push(mProp("og:site_name", info.s)) }
+  if (info.p) {
+    content.push(mProp("og:type", "article"));
+    content.push(mLink("alternate", "", "application/activity+json"));
+  } else if (info.y) {
+    content.push(mProp("og:type", info.y));
+  }
+  if (info.d) { content.push(mProp("og:description", info.d), mName("description", info.d)) }
+  if (info.c) { content.push(mName("theme-color", "#" + info.c)) }
+
+  if (info.u) {
+    info.u = decodeURL(info.u)
+    if (!info.u.startsWith("http")) info.u = "https://" + info.u;
+    content.push(mProp("og:url", info.u));
+    // JSON.stringify quotes the string; escaping < keeps </script> from closing the tag
+    content.push(`<script>location.href=${JSON.stringify(info.u).replace(/</g, "\\u003c")}</script>`);
+  }
+
+  if (info.i) {
+    content.push(mProp("og:image", resolveImageUrl(info.i, info.u)));
+    if (info.iw) content.push(mProp("og:image:width", info.iw));
+    if (info.ih) content.push(mProp("og:image:height", info.ih));
+    content.push(mName("twitter:card", "summary_large_image"));
+  }
+  if (info.v) {
+    content.push(mProp("og:video", decodeURL(info.v)));
+    if (info.vw) content.push(mProp("og:video:width", info.vw));
+    if (info.vh) content.push(mProp("og:video:height", info.vh));
+  }
+  if (info.f) {
+    // iMessage reads either; apple-touch-icon is the higher-resolution source
+    const icon = faviconUrl(info.f, info.u);
+    content.push(mLink("icon", icon, "image/png"), mLink("apple-touch-icon", icon));
+  }
+  return content;
+}
 
 // Valid URL Chars A-Za-z0-9-._~:?@!$&()*;=+/
 export default async (request, context) => {
@@ -106,66 +195,32 @@ export default async (request, context) => {
     let uaArray = Deno.env.get("UA_ARRAY")?.split(",") || [];
     let uaMatch = uaArray.some(a => ua?.indexOf(a) != -1);
     if (uaMatch) { return new Response('', { status: 401 }); }
-    
-    if (path != "/" ) {
-      
-      let metadataBots = [ "Twitterbot", "curl", "facebookexternalhit", "Slackbot-LinkExpanding", "Discordbot", "snapchat", "Googlebot"]
-      let isMetadataBot = metadataBots.some(bot => ua?.indexOf(bot) != -1);
 
+    if (path != "/" ) {
+
+      let isBot = isMetadataBot(ua);
+
+      // /m/ serves tags to every user-agent. The editor shares /m/ links, so
+      // humans land here too and the script tag forwards them.
       if (path.startsWith("/m/")) {
         path = path.substring(2);
-        isMetadataBot = true;
+        isBot = true;
       }
-      
-      if (isMetadataBot && path.endsWith("/")) {
+
+      if (isBot && path.endsWith("/")) {
         console.log("parsing", path)
         let info = pathToMetadata(path)
+        let content = buildTags(info);
 
-        let content = ['<meta charset="UTF-8">'];
-        if (info.t) { content.push(`<title>${info.t}</title>`,mProp("og:title", info.t)) }
-        if (info.s) { content.push(mProp("og:site_name", info.s)) }
-        if (info.y) { content.push(mProp("og:type", info.y)) }
-        if (info.d) { content.push(mProp("og:description", info.d),mName("description",info.d)) }
-        if (info.c) { content.push(mName("theme-color","#" + info.c)) }
-
-        if (info.u) {
-          info.u = decodeURL(info.u)
-          if (!info.u.startsWith("http")) info.u = "https://" + info.u;
-          content.push(mProp("og:url", info.u));
-          content.push(`<script>location.href="${info.u}"</script>`);
-        } else {
-          // content.push(`<script>l=location;l.href=l.hash.substring(1)||'//www.'+l.host</script>`);
-        }
-        
-        if (info.i) {
-          info.i = resolveImageUrl(info.i, info.u)
-
-          content.push(mProp("og:image", info.i));
-          if (info.iw) content.push(mProp("og:image:width", info.iw)); 
-          if (info.ih) content.push(mProp("og:image:width", info.ih)); 
-          content.push(mName("twitter:card", "summary_large_image"));
-        } 
-        if (info.v) {
-          content.push(mProp("og:video", decodeURL(info.v))); 
-          if (info.vw) content.push(mProp("og:image:width", info.vw)); 
-          if (info.vh) content.push(mProp("og:image:width", info.vh)); 
-        } 
-        if (info.f) { // Favicon: URL Encoded
-          if (info.f.length > 9){      
-            content.push(`<link rel="icon" type="image/png" href="${decodeURL(new URL(info.f, info.u).href)}">`);
-          } else {
-            let codepoints = Array.from(info.f).map(c => c.codePointAt(0).toString(16));
-            content.push(`<link rel="icon" type="image/png" href="https://fonts.gstatic.com/s/e/notoemoji/14.0/${codepoints.join("_")}/128.png">`);
-          }
-        }
-
-
-      
-        console.log(["Metadata Request", JSON.stringify(info), geo, ua].join('\t')); 
+        console.log(["Metadata Request", JSON.stringify(info), geo, ua].join('\t'));
         return new Response(content.join("\n"), {
-          headers: { "content-type": "text/html" },
+          headers: {
+            "content-type": "text/html; charset=utf-8",
+            // Let the CDN absorb crawler bursts while corrections still propagate
+            "cache-control": "public, max-age=300, s-maxage=300",
+          },
         });
-      } 
+      }
     } else {
       console.log(["Request", path, geo, request.headers.get("referer"), ua].join('\t'));
     }

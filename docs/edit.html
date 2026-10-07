@@ -60,11 +60,19 @@
     opacity:0.2;
   }
 
+  header {
+    display: flex;
+    flex-direction: row;
+    align-items: baseline;
+    justify-content: space-between;
+    margin: 0 0 20px 4px;
+  }
+
   h1 {
     font-weight: 800;
     font-size: 28px;
     letter-spacing: -0.02em;
-    margin: 0 0 20px 4px;
+    margin: 0;
     padding: 0;
     color: var(--text-color);
   }
@@ -170,7 +178,7 @@
     cursor: text;
   }
 
-  #copy {
+  #copy, #clear {
     flex: 0 0 auto;
     font-size: 12px;
     font-weight: 600;
@@ -180,8 +188,28 @@
     background-color: var(--chip-color);
     transition: background-color 0.15s ease;
   }
-  #copy:hover {
+  #copy:hover, #clear:hover {
     background-color: var(--chip-hover-color);
+  }
+
+  #clear {
+    color: var(--muted-color);
+  }
+
+  .option {
+    display: flex;
+    align-items: flex-start;
+    gap: 8px;
+    margin: 16px 0 0 4px;
+    font-size: var(--small-font-size);
+    line-height: 1.45;
+    color: var(--muted-color);
+    cursor: pointer;
+  }
+  .option input {
+    flex: 0 0 auto;
+    margin: 2px 0 0;
+    accent-color: var(--text-color);
   }
 
   body #linkbot {
@@ -350,7 +378,7 @@
     }
   }
 
-  body.imessage textarea[name="d"],
+  body.imessage:not(:has(#p:checked)) textarea[name="d"],
   body.imessage textarea[name="s"],
   body.twitter textarea[name="s"]
   {
@@ -541,10 +569,15 @@ function load() {
   }
 
 
+  for (let el of document.querySelectorAll("input[type=image]")) el.dataset.blank = el.src;
+
   if (data) {
     console.log("Restoring", data)
     let form = document.forms[0];
     for (let key in data) {
+      // Paths can carry keys the editor has no field for (y, c, iw…)
+      if (!form[key]) continue;
+      if (form[key].type == "checkbox") { form[key].checked = !!data[key]; continue; }
       form[key].value = data[key];
       if (!data[key].length) continue;
       if (key == "i") document.getElementById("i_preview").src = imageToURL(data[key]);
@@ -578,7 +611,8 @@ function parse() {
 
 
   if (mode == "imessage") {
-    formData.delete("d");
+    // Post style makes iMessage show the description, so keep it
+    if (!formData.get("p")) formData.delete("d");
     formData.delete("s");
   }
   if (title) {
@@ -638,6 +672,18 @@ async function copyResult(btn) {
   btn.resetTimer = setTimeout(() => { btn.textContent = "copy" }, 1500);
 }
 
+function clearForm() {
+  let form = document.forms[0];
+  form.reset();
+  for (let el of form.querySelectorAll("input[type=image]")) el.src = el.dataset.blank;
+  document.getElementById("domain").textContent = "example.com";
+  document.getElementById("s").placeholder = "site name";
+  localStorage.removeItem("data");
+  history.replaceState(null, "", "/edit");
+  Array.from(document.querySelectorAll("textarea")).forEach(adjustHeight);
+  document.getElementById("u").focus();
+}
+
 function imageToURL(img) {
   if (img.startsWith("http")) return img;
   let codepoints = Array.from(img).map(c => c.codePointAt(0).toString(16));
@@ -680,7 +726,10 @@ window.addEventListener("resize", () => {
   <form id="form" onsubmit="parse(); return false;">
 
       <div class="column" id="urlcolumn">
-        <h1>make a redirect ↗</h1>
+        <header>
+          <h1>make a redirect ↗</h1>
+          <button type="button" id="clear" onclick="clearForm()" title="Clear all fields">clear</button>
+        </header>
         <div class="field">
           <textarea id="u" name="u" rows="1" oninput="parse()" oncontextmenu="fetchMetadata(); return false;" placeholder="paste a url..."></textarea>
           <button type="button" id="fetch" onclick="fetchMetadata()" title="Fetch title, image &amp; description">↧</button>
@@ -692,6 +741,10 @@ window.addEventListener("resize", () => {
             <button type="button" id="copy" onclick="copyResult(this)" title="Copy to clipboard">copy</button>
           </div>
         </div>
+        <label class="option" title="Adds /p/1/ so the link looks like a social post to iMessage">
+          <input type="checkbox" id="p" name="p" value="1" onchange="parse()">
+          <span>Show the description in iMessage, styled as a post</span>
+        </label>
         <textarea id="linkbot" onclick="selectElement(this)"></textarea>
       </div>
 
