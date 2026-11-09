@@ -171,3 +171,7 @@ The receiver URL is registered with Google and cannot move without updating the
 Receiver changes are live as soon as Netlify deploys — the device fetches the
 page fresh on each launch, and nothing about the page is cached in the
 registration. Only the URL itself is.
+
+## Catalogue
+
+The catalogue entry for this product lives in [`.artifact/redirect-app.md`](.artifact/redirect-app.md), with its icon and images beside it. Edit it here, in the same PR as any change that would make it wrong.
