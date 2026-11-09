@@ -15,8 +15,8 @@ unconfirmed:
   - date
 ---
 
-The link knows where it wants to go; the browser disagrees. Redirect.app is a redirector where the URL is the data: one static endpoint stands in for unlimited specific things, because everything it needs is encoded in the path. No database, no stored state.
+Redirect.app is a redirector that keeps all of its data in the URL. One static endpoint serves every redirect, because the path encodes everything it needs. There is no database and no stored state.
 
-That one idea shows up three times. A link preview you author in a URL, with Open Graph tags for bots and a forward for people, built in a visual editor. A deep-link redirector that tries a custom app scheme and falls back if the app isn't there. A Cast receiver that will display any page you hand it.
+It has three uses. A link preview is authored in a URL and built in a visual editor; it serves Open Graph tags to bots and forwards people to the destination. A deep-link redirector tries a custom app scheme and falls back when the app is not installed. A Cast receiver displays any page given to it.
 
 JavaScript on Netlify, with an edge function for the previews. 2019.
