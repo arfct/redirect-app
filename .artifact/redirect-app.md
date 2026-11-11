@@ -15,7 +15,7 @@ unconfirmed:
   - date
 ---
 
-The address www.redirect.app/Hello/d/World/u/:example.com/ is a link preview with the title Hello and the description World, and it leads to example.com. When the crawler of a chat app fetches such a link, redirect.app answers with Open Graph tags built from the path, while a person who follows it is forwarded to the target. Nothing about a link is stored, so the site needs no database.
+When the crawler of a chat app fetches a redirect.app link, it is answered with Open Graph tags built from the link's own path, while a person who follows the same link is forwarded to its target. The address www.redirect.app/Hello/d/World/u/:example.com/ is a preview with the title Hello and the description World, and it leads to example.com. Nothing about a link is stored, so the site needs no database.
 
 The builder at /edit/, shown in the image, composes these links from a title, a description, a site name, an image and a target, and draws the resulting card in the styles of iMessage, Discord, Slack and Twitter. In the path a dash stands for a space, so that Kitchen---Home-Assistant reads back as Kitchen - Home Assistant.
 
