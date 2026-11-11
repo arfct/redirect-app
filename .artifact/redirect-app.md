@@ -9,14 +9,16 @@ links:
   source: https://github.com/arfct/redirect-app
 media:
   - src: builder.png
-    caption: The builder at redirect.app/edit/, with a URL entered, the redirect link generated from it and the preview card on the right
+    caption: The builder at redirect.app/edit/, with an address entered on the left, the redirect link made from it, and on the right the card that link will produce
     alt: A grey page headed "make a redirect" with a URL field, the generated redirect link and a preview card reading Home Assistant, Kitchen
 unconfirmed:
   - date
 ---
 
-Redirect.app is a URL redirector that keeps no data on a server. Each redirect is encoded in the path of its own link, so one static site handles all of them without a database.
+The address www.redirect.app/Hello/d/World/u/:example.com/ is a link preview with the title Hello and the description World, and it leads to example.com. When the crawler of a chat app fetches such a link, redirect.app answers with Open Graph tags built from the path, while a person who follows it is forwarded to the target. Nothing about a link is stored, so the site needs no database.
 
-It has three uses. A link preview is written into a URL as a title, a description, an image and a target; crawlers that fetch the link receive Open Graph tags, and people are forwarded to the target. The builder at /edit/ composes these links and previews the card in the styles of iMessage, Twitter, Slack and Discord. A second route tries a custom app scheme and falls back to another URL when the app is not installed. A Cast sender and receiver display any web page on a Chromecast.
+The builder at /edit/, shown in the image, composes these links from a title, a description, a site name, an image and a target, and draws the resulting card in the styles of iMessage, Discord, Slack and Twitter. In the path a dash stands for a space, so that Kitchen---Home-Assistant reads back as Kitchen - Home Assistant.
+
+Redirect.app began in 2019 as a plain forwarder, which takes its target after a # and can take a fallback as well. On a phone it tries a custom app scheme and goes to the fallback when the app does not open; for a web address it requests the site's favicon first. A Cast sender and receiver, added in 2026, put any web page on a Chromecast.
 
 JavaScript, Netlify Edge Functions. 2019.
