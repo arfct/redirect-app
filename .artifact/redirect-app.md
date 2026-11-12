@@ -1,6 +1,7 @@
 ---
 title: Redirect.app
 date: 2019-07
+status: released
 category: product
 tags:
   - web
@@ -11,8 +12,7 @@ media:
   - src: builder.png
     caption: The builder at redirect.app/edit/, with an address entered on the left, the redirect link made from it, and on the right the card that link will produce
     alt: A grey page headed "make a redirect" with a URL field, the generated redirect link and a preview card reading Home Assistant, Kitchen
-unconfirmed:
-  - date
+unconfirmed: [date, status]
 ---
 
 When the crawler of a chat app fetches a redirect.app link, it is answered with Open Graph tags built from the link's own path, while a person who follows the same link is forwarded to its target. The address www.redirect.app/Hello/d/World/u/:example.com/ is a preview with the title Hello and the description World, and it leads to example.com. Nothing about a link is stored, so the site needs no database.
