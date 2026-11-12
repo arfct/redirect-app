@@ -174,4 +174,4 @@ registration. Only the URL itself is.
 
 ## Catalogue
 
-The catalogue entry for this product lives in [`.artifact/redirect-app.md`](.artifact/redirect-app.md), with its icon and images beside it. Edit it here, in the same PR as any change that would make it wrong.
+The catalogue entry for this product lives in [`.artifact/redirect-app.md`](.artifact/redirect-app.md), with its image beside it. Edit it here, in the same PR as any change that would make it wrong.

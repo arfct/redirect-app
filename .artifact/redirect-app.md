@@ -1,5 +1,5 @@
 ---
-title: Redirect App
+title: Redirect.app
 date: 2019-07
 category: product
 tags:
