@@ -2,7 +2,7 @@
 title: Redirect.app
 date: 2019-07
 status: released
-category: product
+category: web-tool
 tags:
   - web
 url: https://www.redirect.app
